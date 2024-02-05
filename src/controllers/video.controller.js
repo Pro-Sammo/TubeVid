@@ -1,11 +1,13 @@
 import mongoose from "mongoose";
 import { Video } from "../models/video.model.js";
-import { User } from "../models/user.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
-import { deleteUploadedFile } from "../utils/cloudinary.js";
+import {
+  deleteUploadedImageFile,
+  deleteUploadedVideoFile,
+  uploadOnCloudinary,
+} from "../utils/cloudinary.js";
 import { getVideoDurationInSeconds } from "get-video-duration";
 
 export const publishAVideo = asyncHandler(async (req, res) => {
@@ -170,8 +172,8 @@ export const deleteVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Video not available");
   }
 
-  const deletedThumbnail = await deleteUploadedFile(video.thumbnail.public_id);
-  const deletedVideo = await deleteUploadedFile(video.video.public_id);
+  const deletedThumbnail = await deleteUploadedVideoFile(video.video.public_id);
+  const deletedVideo = await deleteUploadedImageFile(video.thumbnail.public_id);
 
   console.log("deletedThumbnail", deletedThumbnail);
   console.log("deletedVideo", deletedVideo);
@@ -193,7 +195,9 @@ export const updateVideoThumbnail = asyncHandler(async (req, res) => {
   if (!video) {
     throw new ApiError(400, "Video not available");
   }
-  const deletedThumbnail = await deleteUploadedFile(video.thumbnail.public_id);
+  const deletedThumbnail = await deleteUploadedImageFile(
+    video.thumbnail.public_id
+  );
 
   const thumbnailLocalPath = req.file?.path;
 
@@ -225,6 +229,27 @@ export const updateVideoThumbnail = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, updatedVideo, "Thumbnail changed successful"));
+});
 
+export const togglePublishStatus = asyncHandler(async (req, res) => {
+  const { videoId } = req.params;
+  
+  if (!videoId) {
+    throw new ApiError(400, "Video id not available");
+  }
 
+  const video = await Video.findById(videoId);
+  if (!video) {
+    throw new ApiError(400, "Video not available");
+  }
+
+  if (video.isPublished === true) {
+    video.isPublished = false;
+  } else {
+    video.isPublished = true;
+  }
+  await video.save({ validateBeforeSave: false });
+  return res.status(200).json({
+    success: true,
+  });
 });
