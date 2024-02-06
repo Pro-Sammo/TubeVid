@@ -49,6 +49,10 @@ const getChannelVideos = asyncHandler(async (req, res) => {
         }
     ])
 
+    if(!channelVideos){
+        throw new ApiError(400, "Something went wrong")
+    }
+
     return res
     .status(200)
     .json(new ApiResponse(200,channelVideos,"Channels All Video Fetched Successfully"))
