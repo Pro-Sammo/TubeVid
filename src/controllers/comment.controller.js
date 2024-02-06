@@ -9,8 +9,8 @@ const getVideoComments = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   const { page = 1, limit = 10 } = req.query;
 
-  if (!videoId) {
-    throw new ApiError(400, "Video id is required");
+  if (!mongoose.isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid video Id");
   }
 
   const comment = await Comment.aggregatePaginate(
@@ -64,8 +64,8 @@ const addComment = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   const { content } = req.body;
 
-  if (!videoId) {
-    throw new ApiError(400, "Video id is required");
+  if (!mongoose.isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid video Id");
   }
 
   if (!content) {
@@ -91,8 +91,8 @@ const updateComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
   const { content } = req.body;
 
-  if (!commentId) {
-    throw new ApiError(400, "comment id is required");
+  if (!mongoose.isValidObjectId(commentId)) {
+    throw new ApiError(400, "Invalid comment Id");
   }
 
   const comment = await Comment.findByIdAndUpdate(
@@ -117,8 +117,8 @@ const updateComment = asyncHandler(async (req, res) => {
 const deleteComment = asyncHandler(async (req, res) => {
   const { commentId } = req.params;
 
-  if (!commentId) {
-    throw new ApiError(400, "comment id is required");
+  if (!mongoose.isValidObjectId(commentId)) {
+    throw new ApiError(400, "Invalid comment Id");
   }
 
   const comment = await Comment.findByIdAndDelete(commentId);

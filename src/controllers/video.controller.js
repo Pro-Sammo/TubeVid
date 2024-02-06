@@ -106,13 +106,18 @@ export const getAllVideos = asyncHandler(async (req, res) => {
 export const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   if (!videoId) {
-    throw new ApiError(400, "Video id not available");
+    throw new ApiError(400, "Invalid Video Id");
   }
+
+  await Video.findByIdAndUpdate(videoId,{
+    $inc:{views:1}
+  })
 
   const video = await Video.aggregate([
     {
       $match: {
         _id: new mongoose.Types.ObjectId(videoId),
+        isPublished:true,
       },
     },
     {
@@ -135,6 +140,13 @@ export const getVideoById = asyncHandler(async (req, res) => {
               subscribersCount: {
                 $size: "$subscribers",
               },
+              isSubscribed: {
+                $cond: {
+                  if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+                  then: true,
+                  else: false,
+                },
+              },
             },
           },
           {
@@ -143,16 +155,20 @@ export const getVideoById = asyncHandler(async (req, res) => {
               username: 1,
               avatar: 1,
               subscribersCount: 1,
+              isSubscribed:1,
               duration: 1,
             },
           },
         ],
       },
     },
+    {
+      $unwind:"$owner"
+    }
   ]);
 
   if (!video) {
-    throw new ApiError(400, "Invalid Video Id");
+    throw new ApiError(400, "Something went wrong while db operation");
   }
 
   return res

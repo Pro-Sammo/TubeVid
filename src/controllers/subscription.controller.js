@@ -8,28 +8,28 @@ import { User } from "../models/user.model.js";
 export const toggleSubscription = asyncHandler(async (req, res) => {
   const { channelId } = req.params;
 
-  if (!channelId) {
+  if (!mongoose.isValidObjectId(channelId)) {
     throw new ApiError(400, "Invalid channel Id");
   }
-
-  const subscription = await Subscription.findOne({
+  const existingSubscription = await Subscription.findOne({
     channel: channelId,
     subscriber: req.user._id,
   });
 
-  if (!subscription) {
+  if (!existingSubscription) {
     await Subscription.create({
       subscriber: req.user._id,
       channel: channelId,
     });
+    return res.status(200).json(new ApiResponse(200, {}, "Channel subscribed Successfully"));
   } else {
-    await Subscription.findOneAndDelete({
+    await Subscription.deleteOne({
       channel: channelId,
       subscriber: req.user._id,
     });
-  }
 
-  return res.status(200).json(new ApiResponse(200, {}, "Toggle Successfully"));
+    return res.status(200).json(new ApiResponse(200, {}, "Channel unsubscribed Successfully"));
+  }
 });
 
 // controller to return subscriber list of a channel
