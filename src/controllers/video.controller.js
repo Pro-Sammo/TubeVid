@@ -9,6 +9,7 @@ import {
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 import { getVideoDurationInSeconds } from "get-video-duration";
+import redis from "redis";
 
 export const publishAVideo = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
@@ -55,52 +56,52 @@ export const publishAVideo = asyncHandler(async (req, res) => {
 export const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
 
-  const data = await Video.aggregatePaginate(
-    Video.aggregate([
-      {
-        $lookup: {
-          from: "users",
-          localField: "owner",
-          foreignField: "_id",
-          as: "owner",
-          pipeline: [
-            {
-              $lookup: {
-                from: "subscriptions",
-                localField: "_id",
-                foreignField: "channel",
-                as: "subscribers",
-              },
-            },
-            {
-              $addFields: {
-                subscribersCount: {
-                  $size: "$subscribers",
+    const allVideo = await Video.aggregatePaginate(
+      Video.aggregate([
+        {
+          $lookup: {
+            from: "users",
+            localField: "owner",
+            foreignField: "_id",
+            as: "owner",
+            pipeline: [
+              {
+                $lookup: {
+                  from: "subscriptions",
+                  localField: "_id",
+                  foreignField: "channel",
+                  as: "subscribers",
                 },
               },
-            },
-            {
-              $project: {
-                fullName: 1,
-                username: 1,
-                avatar: 1,
-                subscribersCount: 1,
-                duration: 1,
+              {
+                $addFields: {
+                  subscribersCount: {
+                    $size: "$subscribers",
+                  },
+                },
               },
-            },
-          ],
+              {
+                $project: {
+                  fullName: 1,
+                  username: 1,
+                  avatar: 1,
+                  subscribersCount: 1,
+                  duration: 1,
+                },
+              },
+            ],
+          },
         },
-      },
-    ]),
-    {
-      page: page,
-      limit: limit,
-    }
-  );
+      ]),
+      {
+        page: page,
+        limit: limit,
+      }
+    );
 
   return res
     .status(200)
-    .json(new ApiResponse(200, data, "All video fetch successful"));
+    .json(new ApiResponse(200, allVideo, "All video fetch successful"));
 });
 
 export const getVideoById = asyncHandler(async (req, res) => {
@@ -109,15 +110,15 @@ export const getVideoById = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid Video Id");
   }
 
-  await Video.findByIdAndUpdate(videoId,{
-    $inc:{views:1}
-  })
+  await Video.findByIdAndUpdate(videoId, {
+    $inc: { views: 1 },
+  });
 
   const video = await Video.aggregate([
     {
       $match: {
         _id: new mongoose.Types.ObjectId(videoId),
-        isPublished:true,
+        isPublished: true,
       },
     },
     {
@@ -155,7 +156,7 @@ export const getVideoById = asyncHandler(async (req, res) => {
               username: 1,
               avatar: 1,
               subscribersCount: 1,
-              isSubscribed:1,
+              isSubscribed: 1,
               duration: 1,
             },
           },
@@ -163,8 +164,8 @@ export const getVideoById = asyncHandler(async (req, res) => {
       },
     },
     {
-      $unwind:"$owner"
-    }
+      $unwind: "$owner",
+    },
   ]);
 
   if (!video) {
@@ -249,7 +250,7 @@ export const updateVideoThumbnail = asyncHandler(async (req, res) => {
 
 export const togglePublishStatus = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  
+
   if (!videoId) {
     throw new ApiError(400, "Video id not available");
   }
