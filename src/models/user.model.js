@@ -26,11 +26,20 @@ const userSchema = new mongoose.Schema(
       index: true,
     },
     avatar: {
-      type: String, //cludinary url
-      required: true,
+      public_id: {
+        type: String,
+      },
+      url: {
+        type: String,
+      },
     },
     coverImage: {
-      type: String, //cludinary url
+      public_id: {
+        type: String,
+      },
+      url: {
+        type: String,
+      },
     },
     watchHistory: [
       {
@@ -51,7 +60,7 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  this.password =await bcryptjs.hash(this.password, 10);
+  this.password = await bcryptjs.hash(this.password, 10);
   next();
 });
 

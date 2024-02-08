@@ -9,7 +9,7 @@ import {
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 import { getVideoDurationInSeconds } from "get-video-duration";
-import redis from "redis";
+import { User } from "../models/user.model.js";
 
 export const publishAVideo = asyncHandler(async (req, res) => {
   const { title, description } = req.body;
@@ -56,48 +56,48 @@ export const publishAVideo = asyncHandler(async (req, res) => {
 export const getAllVideos = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query;
 
-    const allVideo = await Video.aggregatePaginate(
-      Video.aggregate([
-        {
-          $lookup: {
-            from: "users",
-            localField: "owner",
-            foreignField: "_id",
-            as: "owner",
-            pipeline: [
-              {
-                $lookup: {
-                  from: "subscriptions",
-                  localField: "_id",
-                  foreignField: "channel",
-                  as: "subscribers",
-                },
-              },
-              {
-                $addFields: {
-                  subscribersCount: {
-                    $size: "$subscribers",
-                  },
-                },
-              },
-              {
-                $project: {
-                  fullName: 1,
-                  username: 1,
-                  avatar: 1,
-                  subscribersCount: 1,
-                  duration: 1,
-                },
-              },
-            ],
-          },
-        },
-      ]),
+  const allVideo = await Video.aggregatePaginate(
+    Video.aggregate([
       {
-        page: page,
-        limit: limit,
-      }
-    );
+        $lookup: {
+          from: "users",
+          localField: "owner",
+          foreignField: "_id",
+          as: "owner",
+          pipeline: [
+            {
+              $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers",
+              },
+            },
+            {
+              $addFields: {
+                subscribersCount: {
+                  $size: "$subscribers",
+                },
+              },
+            },
+            {
+              $project: {
+                fullName: 1,
+                username: 1,
+                avatar: 1,
+                subscribersCount: 1,
+                duration: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]),
+    {
+      page: page,
+      limit: limit,
+    }
+  );
 
   return res
     .status(200)
@@ -168,6 +168,12 @@ export const getVideoById = asyncHandler(async (req, res) => {
     },
   ]);
 
+  await User.findByIdAndUpdate(req.user._id, {
+    $push: {
+      watchHistory: videoId,
+    },
+  });
+
   if (!video) {
     throw new ApiError(400, "Something went wrong while db operation");
   }
@@ -180,22 +186,26 @@ export const getVideoById = asyncHandler(async (req, res) => {
 export const deleteVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   if (!videoId) {
-    throw new ApiError(400, "Video id not available");
+    throw new ApiError(400, "Invalid video Id");
   }
 
-  const video = await Video.findById(videoId);
+  const video = await Video.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(videoId),
+        owner: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+  ]);
 
   if (!video) {
     throw new ApiError(400, "Video not available");
   }
 
-  const deletedThumbnail = await deleteUploadedVideoFile(video.video.public_id);
-  const deletedVideo = await deleteUploadedImageFile(video.thumbnail.public_id);
+  await deleteUploadedVideoFile(video[0].video.public_id);
+  await deleteUploadedImageFile(video[0].thumbnail.public_id);
 
-  console.log("deletedThumbnail", deletedThumbnail);
-  console.log("deletedVideo", deletedVideo);
-
-  await Video.findByIdAndDelete(videoId);
+  await Video.findByIdAndDelete(video[0]._id);
 
   return res
     .status(200)
@@ -207,14 +217,12 @@ export const updateVideoThumbnail = asyncHandler(async (req, res) => {
   if (!videoId) {
     throw new ApiError(400, "Video id not available");
   }
-  const video = await Video.findById(videoId);
+  const video = await Video.findOne({ _id: videoId, owner: req.user._id });
 
   if (!video) {
     throw new ApiError(400, "Video not available");
   }
-  const deletedThumbnail = await deleteUploadedImageFile(
-    video.thumbnail.public_id
-  );
+  await deleteUploadedImageFile(video.thumbnail.public_id);
 
   const thumbnailLocalPath = req.file?.path;
 
@@ -255,7 +263,7 @@ export const togglePublishStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Video id not available");
   }
 
-  const video = await Video.findById(videoId);
+  const video = await Video.findOne({ _id: videoId, owner: req.user._id });
   if (!video) {
     throw new ApiError(400, "Video not available");
   }

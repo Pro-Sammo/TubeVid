@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Playlist } from "../models/playlist.model.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
@@ -61,9 +62,31 @@ const getPlaylistById = asyncHandler(async (req, res) => {
 
 const addVideoToPlaylist = asyncHandler(async (req, res) => {
   const { playlistId, videoId } = req.params;
+
+  
   if (!playlistId || !videoId) {
     throw new ApiError(400, "All parametar is required");
   }
+
+  const alreadyExists = await Playlist.aggregate([
+    {
+      $match:{
+        _id:new mongoose.Types.ObjectId(playlistId),
+      }
+    },{
+      $addFields:{
+        isExist: {
+          $in:[new mongoose.Types.ObjectId(videoId), "$videos"]
+        },
+      }
+    }
+  ])
+
+  if(alreadyExists[0].isExist){
+    throw new ApiError(400, "Video already exist in playlist")
+  }
+
+
   const playList = await Playlist.findByIdAndUpdate(
     playlistId,
     {
@@ -75,6 +98,8 @@ const addVideoToPlaylist = asyncHandler(async (req, res) => {
       new: true,
     }
   );
+
+
 
   if (!playList) {
     throw new ApiError(400, "Something went wrong while db operation");
