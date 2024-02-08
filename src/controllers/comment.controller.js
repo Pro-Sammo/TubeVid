@@ -5,7 +5,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const getVideoComments = asyncHandler(async (req, res) => {
-  //TODO: get all comments for a video
+
   const { videoId } = req.params;
   const { page = 1, limit = 10 } = req.query;
 
@@ -38,6 +38,28 @@ const getVideoComments = asyncHandler(async (req, res) => {
         },
       },
       {
+        $lookup:{
+          from:"likes",
+          localField:"_id",
+          foreignField:"comment",
+          as:"like"
+        }
+      },
+      {
+        $addFields:{
+          likesCount:{
+            $size:"$like"
+          },
+          isLiked:{
+            $cond:{
+              if:{$in:[new mongoose.Types.ObjectId(req.user._id),"$like.likedBy"]},
+              then:true,
+              else:false
+            }
+          }
+        }
+      },
+      {
         $unwind: "$owner",
       },
       {
@@ -46,6 +68,8 @@ const getVideoComments = asyncHandler(async (req, res) => {
           owner:1,
           createdAt:1,
           updatedAt:1,
+          likesCount:1,
+          isLiked:1
         },
       },
     ]),
@@ -93,6 +117,10 @@ const updateComment = asyncHandler(async (req, res) => {
 
   if (!mongoose.isValidObjectId(commentId)) {
     throw new ApiError(400, "Invalid comment Id");
+  }
+
+  if(!content){
+    throw new ApiError(400,"Content is required")
   }
 
   const comment = await Comment.findByIdAndUpdate(

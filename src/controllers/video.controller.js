@@ -106,7 +106,7 @@ export const getAllVideos = asyncHandler(async (req, res) => {
 
 export const getVideoById = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  if (!videoId) {
+  if (!mongoose.isValidObjectId(videoId)) {
     throw new ApiError(400, "Invalid Video Id");
   }
 
@@ -164,16 +164,71 @@ export const getVideoById = asyncHandler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "likes",
+        localField: "_id",
+        foreignField: "video",
+        as: "like",
+      },
+    },
+    {
+      $addFields: {
+        likesCount: {
+          $size: "$like",
+        },
+        isLiked: {
+          $cond: {
+            if: {
+              $in: [new mongoose.Types.ObjectId(req.user._id), "$like.likedBy"],
+            },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
       $unwind: "$owner",
+    },
+    {
+      $project: {
+        video: 1,
+        thumbnail: 1,
+        title: 1,
+        description: 1,
+        duration: 1,
+        views: 1,
+        owner: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        likesCount: 1,
+        isLiked: 1,
+      },
     },
   ]);
 
-  await User.findByIdAndUpdate(req.user._id, {
-    $push: {
-      watchHistory: videoId,
+  const alreadyExists = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
     },
-  });
+    {
+      $addFields: {
+        isExist: {
+          $in: [new mongoose.Types.ObjectId(videoId), "$watchHistory"],
+        },
+      },
+    },
+  ]);
 
+  if (!alreadyExists[0].isExist) {
+    await User.findByIdAndUpdate(req.user._id, {
+      $push: {
+        watchHistory: videoId,
+      },
+    });
+  }
   if (!video) {
     throw new ApiError(400, "Something went wrong while db operation");
   }
@@ -185,7 +240,7 @@ export const getVideoById = asyncHandler(async (req, res) => {
 
 export const deleteVideo = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  if (!videoId) {
+  if (!mongoose.isValidObjectId(videoId)) {
     throw new ApiError(400, "Invalid video Id");
   }
 
@@ -214,7 +269,7 @@ export const deleteVideo = asyncHandler(async (req, res) => {
 
 export const updateVideoThumbnail = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
-  if (!videoId) {
+  if (!mongoose.isValidObjectId(videoId)) {
     throw new ApiError(400, "Video id not available");
   }
   const video = await Video.findOne({ _id: videoId, owner: req.user._id });
@@ -259,7 +314,7 @@ export const updateVideoThumbnail = asyncHandler(async (req, res) => {
 export const togglePublishStatus = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
 
-  if (!videoId) {
+  if (!mongoose.isValidObjectId(videoId)) {
     throw new ApiError(400, "Video id not available");
   }
 

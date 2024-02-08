@@ -35,7 +35,7 @@ export const toggleSubscription = asyncHandler(async (req, res) => {
 // controller to return subscriber list of a channel
 export const getUserChannelSubscribers = asyncHandler(async (req, res) => {
   const { channelId } = req.params;
-  if (!channelId) {
+  if (!mongoose.isValidObjectId(channelId)) {
     throw new ApiError(400, "Invalid channel Id");
   }
 
@@ -102,7 +102,7 @@ export const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 // controller to return channel list to which user has subscribed
 export const getSubscribedChannels = asyncHandler(async (req, res) => {
   const { channelId } = req.params;
-  if (!channelId) {
+  if (!mongoose.isValidObjectId(channelId)) {
     throw new ApiError(400, "Invalid channel Id");
   }
   const AllSubscribedChannel = await User.aggregate([
